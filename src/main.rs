@@ -110,9 +110,9 @@ impl From<FlowControlArg> for FlowControl {
 #[command(author, version, about, long_about = None)]
 #[command(about = "Connect to serial port", long_about = None)]
 struct Arguments {
-    /// Line speed
+    /// Line baud rate
     #[arg(short, long, default_value_t = 115200)]
-    speed: u32,
+    baud_rate: u32,
 
     /// Line data bits
     #[arg(short, long, default_value_t = DataBitsArg(DataBits::Eight))]
@@ -144,13 +144,13 @@ struct Session {
 
 impl Session {
     fn new(device: String, args: Arguments) -> Result<Self, Box<dyn std::error::Error>> {
-        let mut port = serialport::new(device, args.speed)
+        let mut port = serialport::new(device, args.baud_rate)
             .timeout(POLL_DURATION)
             .open()?;
 
         port.set_data_bits(args.data_bits.into())?;
         port.set_stop_bits(StopBits::One)?;
-        port.set_baud_rate(args.speed)?;
+        port.set_baud_rate(args.baud_rate)?;
         port.set_parity(args.parity.into())?;
         port.set_flow_control(args.flow_control.into())?;
 
