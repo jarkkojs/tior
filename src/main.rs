@@ -230,7 +230,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         Event::Resize(columns, rows) => {
                             log::debug!("Resize({}, {})", columns, rows)
                         }
-                        _ => (),
+                        event => log::debug!("Unhandled: {:?}", event),
                     }
                 }
 
