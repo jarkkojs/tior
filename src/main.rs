@@ -174,6 +174,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Commands::Open { device } => {
             let mut session = Session::new(device.to_string(), args)?;
             let mut in_buf = [0; 512];
+            let mut out_buf = [0; 4];
             let mut prefix = false;
             let mut quit = false;
 
@@ -196,15 +197,29 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         }
                         Event::Key(ref key) if key.modifiers == KeyModifiers::NONE => {
                             let encoded = match key.code {
-                                KeyCode::Char(ch) => {
-                                    // Encode into an array which fits any UTF-8 character:
-                                    ch.encode_utf8(&mut [0; 4]).as_bytes().into()
-                                }
-                                KeyCode::Enter => vec![b'\n'],
-                                _ => vec![],
+                                // UTF-8:
+                                KeyCode::Char(ch) => ch.encode_utf8(&mut out_buf).as_bytes(),
+                                KeyCode::Backspace => &[8],
+                                KeyCode::Tab => &[9],
+                                KeyCode::Enter => &[10],
+                                KeyCode::Esc => &[27],
+                                // Escape:
+                                KeyCode::Up => &[27, 91, 65],
+                                KeyCode::Down => &[27, 91, 66],
+                                KeyCode::Right => &[27, 91, 67],
+                                KeyCode::Left => &[27, 91, 68],
+                                KeyCode::End => &[27, 91, 70],
+                                KeyCode::Home => &[27, 91, 72],
+                                KeyCode::BackTab => &[27, 91, 90],
+                                KeyCode::Insert => &[27, 91, 50, 126],
+                                KeyCode::Delete => &[27, 91, 51, 126],
+                                KeyCode::PageUp => &[27, 91, 53, 126],
+                                KeyCode::PageDown => &[27, 91, 54, 126],
+                                _ => &[],
                             };
+
                             if !encoded.is_empty() {
-                                match session.port.write(&encoded) {
+                                match session.port.write(encoded) {
                                     Ok(_) => (),
                                     Err(ref e) if e.kind() == io::ErrorKind::TimedOut => (),
                                     Err(_) => quit = true,
