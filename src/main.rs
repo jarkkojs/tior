@@ -245,9 +245,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         io::stdout().write_all(&in_buf[..size])?;
                         io::stdout().flush()?;
                     }
-                    Err(ref e) if e.kind() == io::ErrorKind::TimedOut => {
-                        session.port.flush()?;
-                    }
+                    Err(ref e) if e.kind() == io::ErrorKind::TimedOut => (),
                     Err(_) => quit = true,
                 }
             }
