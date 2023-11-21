@@ -168,6 +168,7 @@ impl Drop for Session {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    pretty_env_logger::init();
     let args = Arguments::parse();
 
     match &args.command {
@@ -226,12 +227,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 }
                             }
                         }
+                        Event::Resize(columns, rows) => {
+                            log::debug!("Resize({}, {})", columns, rows)
+                        }
                         _ => (),
                     }
                 }
 
                 // Due to error, while writing to the serial port:
                 if quit {
+                    log::debug!("Quit");
                     break;
                 }
 
