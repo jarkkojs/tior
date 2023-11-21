@@ -194,15 +194,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             }
                             prefix = false;
                         }
-                        Event::Key(key) => {
+                        Event::Key(ref key) if key.modifiers == KeyModifiers::NONE => {
                             let encoded = match key.code {
                                 KeyCode::Char(ch) => {
-                                    if key.modifiers == KeyModifiers::NONE {
-                                        // Encode into an array which fits any UTF-8 character:
-                                        ch.encode_utf8(&mut [0; 4]).as_bytes().into()
-                                    } else {
-                                        vec![]
-                                    }
+                                    // Encode into an array which fits any UTF-8 character:
+                                    ch.encode_utf8(&mut [0; 4]).as_bytes().into()
                                 }
                                 KeyCode::Enter => vec![b'\n'],
                                 _ => vec![],
