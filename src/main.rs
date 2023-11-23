@@ -1,3 +1,4 @@
+use clap::builder::PossibleValuesParser;
 use clap::{Parser, Subcommand};
 use core::time::Duration;
 use crossterm::{event, execute, terminal};
@@ -7,63 +8,12 @@ use crossterm::{
 };
 use serde::Serialize;
 use serialport::{DataBits, FlowControl, Parity, SerialPort, StopBits};
-use std::fmt;
 use std::io::{self, Write};
 
 /// Poll rate in Hz
 static POLL_RATE: u64 = 100;
 /// Poll duration in ms
 static POLL_DURATION: Duration = Duration::from_millis(1000 / POLL_RATE / 2);
-
-#[derive(Debug, Clone, Copy)]
-pub struct DataBitsArg(DataBits);
-
-impl From<DataBitsArg> for DataBits {
-    fn from(val: DataBitsArg) -> Self {
-        val.0
-    }
-}
-
-impl fmt::Display for DataBitsArg {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let val = match self.0 {
-            DataBits::Five => 5,
-            DataBits::Six => 6,
-            DataBits::Seven => 7,
-            DataBits::Eight => 8,
-        };
-        write!(f, "{}", val)
-    }
-}
-
-impl clap::builder::ValueParserFactory for DataBitsArg {
-    type Parser = DataBitsArgParser;
-    fn value_parser() -> Self::Parser {
-        DataBitsArgParser
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct DataBitsArgParser;
-impl clap::builder::TypedValueParser for DataBitsArgParser {
-    type Value = DataBitsArg;
-    fn parse_ref(
-        &self,
-        cmd: &clap::Command,
-        arg: Option<&clap::Arg>,
-        value: &std::ffi::OsStr,
-    ) -> Result<Self::Value, clap::Error> {
-        let inner = clap::value_parser!(u8);
-        let val = inner.parse_ref(cmd, arg, value)?;
-        match val {
-            5 => Ok(DataBitsArg(DataBits::Five)),
-            6 => Ok(DataBitsArg(DataBits::Six)),
-            7 => Ok(DataBitsArg(DataBits::Seven)),
-            8 => Ok(DataBitsArg(DataBits::Eight)),
-            _ => Err(clap::Error::new(clap::error::ErrorKind::ValueValidation)),
-        }
-    }
-}
 
 /// Argument structure matching `serialport::Parity`
 #[derive(clap::ValueEnum, Clone, Default, Debug, Serialize)]
@@ -115,8 +65,8 @@ struct Arguments {
     baud_rate: u32,
 
     /// Line data bits
-    #[arg(short, long, default_value_t = DataBitsArg(DataBits::Eight))]
-    data_bits: DataBitsArg,
+    #[arg(short, long, default_value_t = String::from("8"), value_parser = PossibleValuesParser::new(["5", "6", "7", "8"]))]
+    data_bits: String,
 
     /// Flow control
     #[arg(short, long, default_value_t, value_enum)]
@@ -148,7 +98,15 @@ impl Session {
             .timeout(POLL_DURATION)
             .open()?;
 
-        port.set_data_bits(args.data_bits.into())?;
+        let data_bits = match args.data_bits.as_str() {
+            "5" => DataBits::Five,
+            "6" => DataBits::Six,
+            "7" => DataBits::Seven,
+            "8" => DataBits::Eight,
+            d => return Err(format!("data-bits: {}", d).into()),
+        };
+
+        port.set_data_bits(data_bits)?;
         port.set_stop_bits(StopBits::One)?;
         port.set_baud_rate(args.baud_rate)?;
         port.set_parity(args.parity.into())?;
