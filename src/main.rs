@@ -2,6 +2,7 @@
 
 pub mod session;
 
+use crate::session::mode::Entry;
 use crate::session::{Arguments, Commands, Session};
 use clap::Parser;
 use crossterm::{
@@ -138,77 +139,79 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let mut session = Session::new(device.to_string(), args)?;
             let mut in_buf = [0; 512];
             let mut out_buf = [0; 4];
-            let mut prefix = false;
-            let mut quit = false;
-
-            while !quit {
-                if event::poll(crate::session::POLL_DURATION)? {
-                    match event::read()? {
-                        Event::Key(ref key)
-                            if key.code == KeyCode::Char('t')
-                                && key.modifiers == KeyModifiers::CONTROL
-                                && !prefix =>
-                        {
-                            prefix = true;
-                        }
-                        Event::Key(key) if prefix => {
-                            if key.code == KeyCode::Char('q') && key.modifiers == KeyModifiers::NONE
-                            {
-                                quit = true;
-                            }
-                            prefix = false;
-                        }
-                        Event::Key(ref key) if key.modifiers == KeyModifiers::NONE => {
-                            let encoded = match key.code {
-                                // UTF-8:
-                                KeyCode::Char(ch) => ch.encode_utf8(&mut out_buf).as_bytes(),
-                                KeyCode::Backspace => &[8],
-                                KeyCode::Tab => &[9],
-                                KeyCode::Enter => &[10],
-                                KeyCode::Esc => &[27],
-                                // Escape:
-                                KeyCode::Up => &[27, 91, 65],
-                                KeyCode::Down => &[27, 91, 66],
-                                KeyCode::Right => &[27, 91, 67],
-                                KeyCode::Left => &[27, 91, 68],
-                                KeyCode::End => &[27, 91, 70],
-                                KeyCode::Home => &[27, 91, 72],
-                                KeyCode::BackTab => &[27, 91, 90],
-                                KeyCode::Insert => &[27, 91, 50, 126],
-                                KeyCode::Delete => &[27, 91, 51, 126],
-                                KeyCode::PageUp => &[27, 91, 53, 126],
-                                KeyCode::PageDown => &[27, 91, 54, 126],
-                                _ => &[],
-                            };
-
-                            if !encoded.is_empty() {
-                                match session.port.write(encoded) {
-                                    Ok(_) => (),
-                                    Err(ref e) if e.kind() == io::ErrorKind::TimedOut => (),
-                                    Err(_) => quit = true,
-                                }
-                            }
-                        }
-                        Event::Resize(columns, rows) => {
-                            log::debug!("Resize({}, {})", columns, rows)
-                        }
-                        event => log::debug!("Unhandled: {:?}", event),
-                    }
-                }
-
-                // Due to error, while writing to the serial port:
-                if quit {
-                    log::debug!("Quit");
-                    break;
-                }
-
+            loop {
+                // Read input data and event
                 match session.port.read(&mut in_buf) {
                     Ok(size) => {
                         io::stdout().write_all(&in_buf[..size])?;
                         io::stdout().flush()?;
                     }
                     Err(ref e) if e.kind() == io::ErrorKind::TimedOut => (),
-                    Err(_) => quit = true,
+                    Err(_) => break,
+                }
+                let event = event::read()?;
+
+                match session.mode.entry() {
+                    // Input mode:
+                    Entry::WaitingInput(it) => {
+                        match event {
+                            Event::Key(ref key) if key.modifiers == KeyModifiers::NONE => {
+                                let encoded = match key.code {
+                                    // UTF-8:
+                                    KeyCode::Char(ch) => ch.encode_utf8(&mut out_buf).as_bytes(),
+                                    KeyCode::Backspace => &[8],
+                                    KeyCode::Tab => &[9],
+                                    KeyCode::Enter => &[10],
+                                    KeyCode::Esc => &[27],
+                                    // Escape:
+                                    KeyCode::Up => &[27, 91, 65],
+                                    KeyCode::Down => &[27, 91, 66],
+                                    KeyCode::Right => &[27, 91, 67],
+                                    KeyCode::Left => &[27, 91, 68],
+                                    KeyCode::End => &[27, 91, 70],
+                                    KeyCode::Home => &[27, 91, 72],
+                                    KeyCode::BackTab => &[27, 91, 90],
+                                    KeyCode::Insert => &[27, 91, 50, 126],
+                                    KeyCode::Delete => &[27, 91, 51, 126],
+                                    KeyCode::PageUp => &[27, 91, 53, 126],
+                                    KeyCode::PageDown => &[27, 91, 54, 126],
+                                    _ => &[],
+                                };
+
+                                if !encoded.is_empty() {
+                                    match session.port.write(encoded) {
+                                        Ok(_) => (),
+                                        Err(ref e) if e.kind() == io::ErrorKind::TimedOut => (),
+                                        Err(_) => break,
+                                    }
+                                }
+                            }
+                            Event::Key(ref key)
+                                if key.code == KeyCode::Char('t')
+                                    && key.modifiers == KeyModifiers::CONTROL =>
+                            {
+                                it.waiting_command();
+                            }
+                            Event::Resize(columns, rows) => {
+                                log::debug!("Resize({}, {})", columns, rows)
+                            }
+                            event => log::debug!("Unhandled: {:?}", event),
+                        }
+                    }
+                    // Command mode:
+                    Entry::WaitingCommand(it) => {
+                        match event {
+                            Event::Key(key) => {
+                                if key.code == KeyCode::Char('q')
+                                    && key.modifiers == KeyModifiers::NONE
+                                {
+                                    break;
+                                }
+                            }
+                            event => log::debug!("Unhandled: {:?}", event),
+                        }
+                        it.waiting_input();
+                    }
                 }
             }
         }

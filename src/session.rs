@@ -9,6 +9,11 @@ use crossterm::{
 use serde::Serialize;
 use serialport::{DataBits, FlowControl, Parity, SerialPort, StopBits};
 use std::io::{self};
+fsmentry::dsl! {
+    pub Mode {
+        WaitingCommand -> WaitingInput -> WaitingCommand;
+    }
+}
 
 /// Poll rate in Hz
 static POLL_RATE: u64 = 100;
@@ -57,7 +62,7 @@ impl From<FlowControlArg> for FlowControl {
 
 #[derive(Subcommand, Debug)]
 pub enum Commands {
-    /// Open TTY
+    /// Open Terminal
     Open { device: String },
     /// List available devices
     List,
@@ -90,6 +95,7 @@ pub struct Arguments {
 
 pub struct Session {
     pub port: Box<dyn SerialPort>,
+    pub mode: mode::Mode,
 }
 
 impl Session {
@@ -112,9 +118,11 @@ impl Session {
         port.set_parity(args.parity.into())?;
         port.set_flow_control(args.flow_control.into())?;
 
+        let mode = mode::Mode::new(mode::State::WaitingInput);
+
         terminal::enable_raw_mode()?;
         execute!(io::stdout(), EnterAlternateScreen)?;
-        Ok(Session { port })
+        Ok(Session { port, mode })
     }
 }
 
