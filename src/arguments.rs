@@ -1,4 +1,5 @@
-// SPDX-License-Identifier: GPL-2.0
+// SPDX-License-Identifier: GPL-2.0-or-later
+//! Reads and interprets command-line arguments.
 
 use clap::{builder::PossibleValuesParser, Parser, Subcommand, ValueEnum};
 use core::time::Duration;

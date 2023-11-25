@@ -1,4 +1,5 @@
-// SPDX-License-Identifier: GPL-2.0
+// SPDX-License-Identifier: GPL-2.0-or-later
+//! Creates and manages serial TTY sessions.
 
 use crate::arguments::{Arguments, POLL_DURATION};
 use crossterm::{
@@ -7,7 +8,7 @@ use crossterm::{
 };
 use std::io::{self, ErrorKind, Write};
 
-/// Manages the serial port connection and TTY.
+/// Serial port TTY session
 pub struct Session {
     port: Box<dyn serialport::SerialPort>,
 }
