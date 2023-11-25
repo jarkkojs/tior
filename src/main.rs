@@ -64,7 +64,7 @@ fn visit_waiting_input(it: WaitingInput, session: &mut Session) -> std::io::Resu
             it.waiting_command();
         }
         Event::Resize(columns, rows) => {
-            log::debug!("Resize({}, {})", columns, rows)
+            log::debug!("columns: {}, rows: {}", columns, rows)
         }
         event => log::debug!("unknown: {:?}", event),
     }
@@ -77,6 +77,8 @@ fn visit_waiting_command(it: WaitingCommand, _: &mut Session) -> std::io::Result
     if let Event::Key(key) = event::read()? {
         if key.code == KeyCode::Char('q') && key.modifiers == KeyModifiers::NONE {
             it.exit();
+        } else if key.code == KeyCode::Char('z') && key.modifiers == KeyModifiers::NONE {
+            it.sending_file();
         } else {
             it.waiting_input();
         }
@@ -85,13 +87,27 @@ fn visit_waiting_command(it: WaitingCommand, _: &mut Session) -> std::io::Result
     Ok(())
 }
 
-/// TODO: Implement.
-fn visit_sending_file(_: SendingFile, _: &mut Session) -> std::io::Result<()> {
+fn visit_sending_file(it: SendingFile, _: &mut Session) -> std::io::Result<()> {
+    let current_dir = std::env::current_dir()?;
+    let help_message = format!("PWD: {}", current_dir.to_string_lossy());
+
+    let path = inquire::Text::new("Send")
+        .with_autocomplete(path_complete::PathComplete::default())
+        .with_help_message(&help_message)
+        .prompt()
+        .unwrap_or_default();
+
+    log::debug!("path: {path}");
+
+    // TODO: ZMODEM send transmission.
+
+    it.waiting_input();
     Ok(())
 }
 
 /// TODO: Implement.
-fn visit_receiving_file(_: ReceivingFile, _: &mut Session) -> std::io::Result<()> {
+fn visit_receiving_file(it: ReceivingFile, _: &mut Session) -> std::io::Result<()> {
+    it.waiting_input();
     Ok(())
 }
 
