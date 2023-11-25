@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0
 
-pub mod session;
+mod session;
 
-use crate::session::mode::Entry;
-use crate::session::{Arguments, Commands, Session};
 use clap::Parser;
 use crossterm::{
     event,
@@ -13,7 +11,15 @@ use inquire::{
     autocompletion::{Autocomplete, Replacement},
     CustomUserError,
 };
-use std::io::{self, ErrorKind, Write};
+use mode::Entry;
+use session::{Arguments, Command, Session};
+use std::io::ErrorKind;
+
+fsmentry::dsl! {
+    pub Mode {
+        WaitingCommand -> WaitingInput -> WaitingCommand;
+    }
+}
 
 /// Taken from https://github.com/mikaelmello/inquire/blob/main/inquire/examples/complex_autocompletion.rs
 #[derive(Clone, Default)]
@@ -130,97 +136,89 @@ impl Autocomplete for FilePathCompleter {
     }
 }
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+fn run_session(args: &Arguments, device: &str) -> std::io::Result<()> {
+    let mut session = Session::new(device.to_string(), args)?;
+    let mut mode = mode::Mode::new(mode::State::WaitingInput);
+    let mut in_buf = [0; 512];
+    let mut out_buf = [0; 4];
+    loop {
+        let size = session.read_port(&mut in_buf)?;
+        session.write_output_all(&in_buf[..size])?;
+        let event = event::read()?;
+
+        match mode.entry() {
+            // Input mode:
+            Entry::WaitingInput(it) => {
+                match event {
+                    Event::Key(ref key) if key.modifiers == KeyModifiers::NONE => {
+                        let encoded = match key.code {
+                            // UTF-8:
+                            KeyCode::Char(ch) => ch.encode_utf8(&mut out_buf).as_bytes(),
+                            KeyCode::Backspace => &[8],
+                            KeyCode::Tab => &[9],
+                            KeyCode::Enter => &[10],
+                            KeyCode::Esc => &[27],
+                            // Escape:
+                            KeyCode::Up => &[27, 91, 65],
+                            KeyCode::Down => &[27, 91, 66],
+                            KeyCode::Right => &[27, 91, 67],
+                            KeyCode::Left => &[27, 91, 68],
+                            KeyCode::End => &[27, 91, 70],
+                            KeyCode::Home => &[27, 91, 72],
+                            KeyCode::BackTab => &[27, 91, 90],
+                            KeyCode::Insert => &[27, 91, 50, 126],
+                            KeyCode::Delete => &[27, 91, 51, 126],
+                            KeyCode::PageUp => &[27, 91, 53, 126],
+                            KeyCode::PageDown => &[27, 91, 54, 126],
+                            _ => &[],
+                        };
+
+                        if !encoded.is_empty() {
+                            session.write_port_all(encoded)?;
+                        }
+                    }
+                    Event::Key(ref key)
+                        if key.code == KeyCode::Char('t')
+                            && key.modifiers == KeyModifiers::CONTROL =>
+                    {
+                        it.waiting_command();
+                    }
+                    Event::Resize(columns, rows) => {
+                        log::debug!("Resize({}, {})", columns, rows)
+                    }
+                    event => log::debug!("Unhandled: {:?}", event),
+                }
+            }
+            // Command mode:
+            Entry::WaitingCommand(it) => {
+                match event {
+                    Event::Key(key) => {
+                        if key.code == KeyCode::Char('q') && key.modifiers == KeyModifiers::NONE {
+                            break;
+                        }
+                    }
+                    event => log::debug!("Unhandled: {:?}", event),
+                }
+                it.waiting_input();
+            }
+        }
+    }
+    Ok(())
+}
+
+fn main() -> std::io::Result<()> {
     pretty_env_logger::init();
     let args = Arguments::parse();
 
     match &args.command {
-        Commands::Open { device } => {
-            let mut session = Session::new(device.to_string(), args)?;
-            let mut in_buf = [0; 512];
-            let mut out_buf = [0; 4];
-            loop {
-                // Read input data and event
-                match session.port.read(&mut in_buf) {
-                    Ok(size) => {
-                        io::stdout().write_all(&in_buf[..size])?;
-                        io::stdout().flush()?;
-                    }
-                    Err(ref e) if e.kind() == io::ErrorKind::TimedOut => (),
-                    Err(_) => break,
-                }
-                let event = event::read()?;
-
-                match session.mode.entry() {
-                    // Input mode:
-                    Entry::WaitingInput(it) => {
-                        match event {
-                            Event::Key(ref key) if key.modifiers == KeyModifiers::NONE => {
-                                let encoded = match key.code {
-                                    // UTF-8:
-                                    KeyCode::Char(ch) => ch.encode_utf8(&mut out_buf).as_bytes(),
-                                    KeyCode::Backspace => &[8],
-                                    KeyCode::Tab => &[9],
-                                    KeyCode::Enter => &[10],
-                                    KeyCode::Esc => &[27],
-                                    // Escape:
-                                    KeyCode::Up => &[27, 91, 65],
-                                    KeyCode::Down => &[27, 91, 66],
-                                    KeyCode::Right => &[27, 91, 67],
-                                    KeyCode::Left => &[27, 91, 68],
-                                    KeyCode::End => &[27, 91, 70],
-                                    KeyCode::Home => &[27, 91, 72],
-                                    KeyCode::BackTab => &[27, 91, 90],
-                                    KeyCode::Insert => &[27, 91, 50, 126],
-                                    KeyCode::Delete => &[27, 91, 51, 126],
-                                    KeyCode::PageUp => &[27, 91, 53, 126],
-                                    KeyCode::PageDown => &[27, 91, 54, 126],
-                                    _ => &[],
-                                };
-
-                                if !encoded.is_empty() {
-                                    match session.port.write(encoded) {
-                                        Ok(_) => (),
-                                        Err(ref e) if e.kind() == io::ErrorKind::TimedOut => (),
-                                        Err(_) => break,
-                                    }
-                                }
-                            }
-                            Event::Key(ref key)
-                                if key.code == KeyCode::Char('t')
-                                    && key.modifiers == KeyModifiers::CONTROL =>
-                            {
-                                it.waiting_command();
-                            }
-                            Event::Resize(columns, rows) => {
-                                log::debug!("Resize({}, {})", columns, rows)
-                            }
-                            event => log::debug!("Unhandled: {:?}", event),
-                        }
-                    }
-                    // Command mode:
-                    Entry::WaitingCommand(it) => {
-                        match event {
-                            Event::Key(key) => {
-                                if key.code == KeyCode::Char('q')
-                                    && key.modifiers == KeyModifiers::NONE
-                                {
-                                    break;
-                                }
-                            }
-                            event => log::debug!("Unhandled: {:?}", event),
-                        }
-                        it.waiting_input();
-                    }
-                }
-            }
-        }
-        Commands::List => {
+        Command::Open { device } => run_session(&args, device)?,
+        Command::List => {
             let ports = serialport::available_ports()?;
             for port in ports {
                 println!("{}", port.port_name);
             }
         }
     }
+
     Ok(())
 }
