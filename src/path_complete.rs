@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-//! This module provides file path completion for `inquire::Text`. The original
-//! source code was taken from the complex auto-completion exmaple of `inquire`
-//! v0.6.2.
+//! Path auto-completion. The original source code was taken from the complex
+//! auto-completion exmaple of `inquire` v0.6.2.
 
 use inquire::{
     autocompletion::{Autocomplete, Replacement},
@@ -10,8 +9,6 @@ use inquire::{
 
 use std::io::ErrorKind;
 
-/// File path completion for `inquire::Text`. Implements `inquire::Autocomplete`
-/// trait.
 #[derive(Clone, Default)]
 pub struct PathComplete {
     input: String,

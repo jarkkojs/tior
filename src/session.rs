@@ -1,21 +1,16 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-//! Manages a serial port connection and the host terminal.
+//! A serial port interface.
 
 use crate::arguments::{Arguments, POLL_DURATION};
-use crossterm::{
-    execute,
-    terminal::{self, EnterAlternateScreen, LeaveAlternateScreen},
-};
 use std::io::{self, ErrorKind};
 
-/// A serial terminal session
+/// A serial port connector.
 pub struct Session {
     port: Box<dyn serialport::SerialPort>,
 }
 
 impl Session {
-    /// Connect to a serial port. On success, put the host terminal to the raw
-    /// mode, and enter the alternate screen.
+    /// Connect to a serial port.
     pub fn new(device: String, args: &Arguments) -> io::Result<Self> {
         let mut port = serialport::new(device, args.baud_rate)
             .timeout(POLL_DURATION)
@@ -35,15 +30,13 @@ impl Session {
         port.set_parity(args.parity.into())?;
         port.set_flow_control(args.flow_control.into())?;
 
-        terminal::enable_raw_mode()?;
-        execute!(io::stdout(), EnterAlternateScreen)?;
         Ok(Session { port })
     }
 }
 
 impl io::Read for Session {
-    /// Read data from the serial port. If the operation expires, zero length
-    /// will be returned.
+    /// Read data from the serial port. Returns zero length for the buffer,
+    /// if the operation expires.
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.port.read(buf).or_else(|e| {
             if e.kind() == ErrorKind::TimedOut {
@@ -56,8 +49,8 @@ impl io::Read for Session {
 }
 
 impl io::Write for Session {
-    /// Write  data to the serial port. If the operation expires, zero length
-    /// will be returned.
+    /// Write data to the serial port. Returns zero length for the buffer,
+    /// if the operation expires.
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         self.port.write(buf).or_else(|e| {
             if e.kind() == ErrorKind::TimedOut {
@@ -68,16 +61,8 @@ impl io::Write for Session {
         })
     }
 
-    // Flush the intermediate buffer contents to the serial port.
+    // Flush the intermediate buffer.
     fn flush(&mut self) -> io::Result<()> {
         self.port.flush()
-    }
-}
-
-impl Drop for Session {
-    /// Disable raw mode and leave the alternate screen.
-    fn drop(&mut self) {
-        terminal::disable_raw_mode().expect("Disabling RAW mode");
-        execute!(io::stdout(), LeaveAlternateScreen).expect("Leaving alternate screen");
     }
 }
