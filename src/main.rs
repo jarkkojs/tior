@@ -18,6 +18,7 @@ use crossterm::{
 use mode::{Entry, ReceivingFile, SendingFile, WaitingCommand, WaitingInput};
 
 fsmentry::dsl! {
+    #[derive(Debug)]
     pub Mode {
         WaitingInput -> WaitingCommand -> WaitingInput;
         WaitingCommand -> SendingFile -> WaitingInput;
@@ -111,6 +112,8 @@ fn run_open(args: &Arguments, device: &str) -> std::io::Result<()> {
             Entry::ReceivingFile(it) => visit_receiving_file(it, &mut session),
             Entry::Exit => return Ok(()),
         }?;
+
+        log::trace!("mode: {:?}", mode.state());
     }
 }
 
