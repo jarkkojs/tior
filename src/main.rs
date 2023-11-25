@@ -21,7 +21,9 @@ use std::io::ErrorKind;
 
 fsmentry::dsl! {
     pub Mode {
-        WaitingCommand -> WaitingInput -> WaitingCommand;
+        WaitingInput -> WaitingCommand -> WaitingInput;
+        WaitingCommand -> SendingFile -> WaitingInput;
+        WaitingCommand -> ReceivingFile -> WaitingInput;
     }
 }
 
@@ -203,6 +205,14 @@ fn run_session(args: &Arguments, device: &str) -> std::io::Result<()> {
                     }
                     event => log::debug!("Unhandled: {:?}", event),
                 }
+                it.waiting_input();
+            }
+            Entry::SendingFile(it) => {
+                // TODO: Implement.
+                it.waiting_input();
+            }
+            Entry::ReceivingFile(it) => {
+                // TODO: Implement.
                 it.waiting_input();
             }
         }
