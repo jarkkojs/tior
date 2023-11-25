@@ -1,7 +1,12 @@
 // SPDX-License-Identifier: GPL-2.0
 
+mod arguments;
 mod session;
 
+use crate::{
+    arguments::{Arguments, Command},
+    session::Session,
+};
 use clap::Parser;
 use crossterm::{
     event,
@@ -12,7 +17,6 @@ use inquire::{
     CustomUserError,
 };
 use mode::Entry;
-use session::{Arguments, Command, Session};
 use std::io::ErrorKind;
 
 fsmentry::dsl! {
@@ -206,10 +210,7 @@ fn run_session(args: &Arguments, device: &str) -> std::io::Result<()> {
     Ok(())
 }
 
-fn main() -> std::io::Result<()> {
-    pretty_env_logger::init();
-    let args = Arguments::parse();
-
+fn run_command(args: Arguments) -> std::io::Result<()> {
     match &args.command {
         Command::Open { device } => run_session(&args, device)?,
         Command::List => {
@@ -221,4 +222,10 @@ fn main() -> std::io::Result<()> {
     }
 
     Ok(())
+}
+
+fn main() -> std::io::Result<()> {
+    pretty_env_logger::init();
+    let args = Arguments::parse();
+    run_command(args)
 }
