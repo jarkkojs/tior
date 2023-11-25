@@ -224,8 +224,10 @@ fn run_command(args: Arguments) -> std::io::Result<()> {
     Ok(())
 }
 
-fn main() -> std::io::Result<()> {
+fn main() {
     pretty_env_logger::init();
     let args = Arguments::parse();
-    run_command(args)
+    run_command(args).unwrap_or_else(|e| {
+        log::error!("{}", e);
+    })
 }
