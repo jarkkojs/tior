@@ -1,20 +1,21 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-//! Creates and manages serial TTY sessions.
+//! Manages a serial port connection and the host terminal.
 
 use crate::arguments::{Arguments, POLL_DURATION};
 use crossterm::{
-    execute, terminal,
-    terminal::{EnterAlternateScreen, LeaveAlternateScreen},
+    execute,
+    terminal::{self, EnterAlternateScreen, LeaveAlternateScreen},
 };
-use std::io::{self, ErrorKind, Write};
+use std::io::{self, ErrorKind};
 
-/// Serial port TTY session
+/// A serial terminal session
 pub struct Session {
     port: Box<dyn serialport::SerialPort>,
 }
 
 impl Session {
-    /// Create new session.
+    /// Connect to a serial port. On success, put the host terminal to the raw
+    /// mode, and enter the alternate screen.
     pub fn new(device: String, args: &Arguments) -> io::Result<Self> {
         let mut port = serialport::new(device, args.baud_rate)
             .timeout(POLL_DURATION)
@@ -38,9 +39,12 @@ impl Session {
         execute!(io::stdout(), EnterAlternateScreen)?;
         Ok(Session { port })
     }
+}
 
-    /// Read data from the serial port. Returns `Ok(0)` if the operation expires.
-    pub fn read_port(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+impl io::Read for Session {
+    /// Read data from the serial port. If the operation expires, zero length
+    /// will be returned.
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.port.read(buf).or_else(|e| {
             if e.kind() == ErrorKind::TimedOut {
                 Ok(0)
@@ -49,21 +53,30 @@ impl Session {
             }
         })
     }
+}
 
-    /// Write data to the serial port.
-    pub fn write_port_all(&mut self, buf: &[u8]) -> io::Result<()> {
-        self.port.write_all(buf)
+impl io::Write for Session {
+    /// Write  data to the serial port. If the operation expires, zero length
+    /// will be returned.
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.port.write(buf).or_else(|e| {
+            if e.kind() == ErrorKind::TimedOut {
+                Ok(0)
+            } else {
+                Err(e)
+            }
+        })
+
     }
 
-    /// Write data to the output.
-    pub fn write_output_all(&mut self, buf: &[u8]) -> io::Result<()> {
-        io::stdout().write_all(buf)?;
-        io::stdout().flush()?;
-        Ok(())
+    // Flush the intermediate buffer contents to the serial port.
+    fn flush(&mut self) -> io::Result<()> {
+        self.port.flush()
     }
 }
 
 impl Drop for Session {
+    /// Disable raw mode and leave the alternate screen.
     fn drop(&mut self) {
         terminal::disable_raw_mode().expect("Disabling RAW mode");
         execute!(io::stdout(), LeaveAlternateScreen).expect("Leaving alternate screen");

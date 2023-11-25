@@ -10,12 +10,11 @@ use crate::{
     arguments::{Arguments, Task},
     session::Session,
 };
+
 use clap::Parser;
-use crossterm::{
-    event,
-    event::{Event, KeyCode, KeyModifiers},
-};
+use crossterm::event::{self, Event, KeyCode, KeyModifiers};
 use mode::{Entry, ReceivingFile, SendingFile, WaitingCommand, WaitingInput};
+use std::io::{self, Read, Write};
 
 fsmentry::dsl! {
     #[derive(Debug)]
@@ -55,7 +54,7 @@ fn visit_waiting_input(it: WaitingInput, session: &mut Session) -> std::io::Resu
             };
 
             if !encoded.is_empty() {
-                session.write_port_all(encoded)?;
+                session.write_all(encoded)?;
             }
         }
         Event::Key(ref key)
@@ -118,8 +117,9 @@ fn run_open(args: &Arguments, device: &str) -> std::io::Result<()> {
     let mut buf = [0; 512];
 
     loop {
-        let size = session.read_port(&mut buf)?;
-        session.write_output_all(&buf[..size])?;
+        let size = session.read(&mut buf)?;
+        io::stdout().write_all(&buf[..size])?;
+        io::stdout().flush()?;
 
         match mode.entry() {
             Entry::WaitingInput(it) => visit_waiting_input(it, &mut session),
