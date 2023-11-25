@@ -52,7 +52,7 @@ impl From<FlowControl> for serialport::FlowControl {
 
 /// Serial port session task
 #[derive(Subcommand, Debug)]
-pub enum Command {
+pub enum Task {
     /// Open Terminal
     Open { device: String },
     /// List available devices
@@ -81,5 +81,5 @@ pub struct Arguments {
     pub parity: Parity,
 
     #[command(subcommand)]
-    pub command: Command,
+    pub task: Task,
 }

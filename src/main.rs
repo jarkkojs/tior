@@ -7,7 +7,7 @@ mod path_complete;
 mod session;
 
 use crate::{
-    arguments::{Arguments, Command},
+    arguments::{Arguments, Task},
     session::Session,
 };
 use clap::Parser;
@@ -95,7 +95,7 @@ fn visit_receiving_file(_: ReceivingFile, _: &mut Session) -> std::io::Result<()
     Ok(())
 }
 
-/// Run `Command::Open`.
+/// Run `Task::Open`.
 fn run_open(args: &Arguments, device: &str) -> std::io::Result<()> {
     let mut session = Session::new(device.to_string(), args)?;
     let mut mode = mode::Mode::new(mode::State::WaitingInput);
@@ -117,7 +117,7 @@ fn run_open(args: &Arguments, device: &str) -> std::io::Result<()> {
     }
 }
 
-/// Run `Command::List`.
+/// Run `Task::List`.
 fn run_list() -> std::io::Result<()> {
     let ports = serialport::available_ports()?;
 
@@ -128,10 +128,10 @@ fn run_list() -> std::io::Result<()> {
     Ok(())
 }
 
-fn run_command(args: Arguments) -> std::io::Result<()> {
-    match &args.command {
-        Command::Open { device } => run_open(&args, device)?,
-        Command::List => run_list()?,
+fn run_task(args: Arguments) -> std::io::Result<()> {
+    match &args.task {
+        Task::Open { device } => run_open(&args, device)?,
+        Task::List => run_list()?,
     }
 
     Ok(())
@@ -140,7 +140,7 @@ fn run_command(args: Arguments) -> std::io::Result<()> {
 fn main() {
     pretty_env_logger::init();
     let args = Arguments::parse();
-    run_command(args).unwrap_or_else(|e| {
+    run_task(args).unwrap_or_else(|e| {
         log::error!("{}", e);
     })
 }
