@@ -76,7 +76,7 @@ fn visit_waiting_command(it: WaitingCommand, _: &mut Session) -> std::io::Result
     if let Event::Key(key) = event::read()? {
         if key.code == KeyCode::Char('q') && key.modifiers == KeyModifiers::NONE {
             it.exit();
-        } else if key.code == KeyCode::Char('z') && key.modifiers == KeyModifiers::NONE {
+        } else if key.code == KeyCode::Char('s') && key.modifiers == KeyModifiers::NONE {
             it.sending_file();
         } else {
             it.waiting_input();

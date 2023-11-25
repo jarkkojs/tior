@@ -66,7 +66,6 @@ impl io::Write for Session {
                 Err(e)
             }
         })
-
     }
 
     // Flush the intermediate buffer contents to the serial port.

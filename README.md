@@ -1,6 +1,12 @@
 tior is a serial device tool, inspired by [tio](https://github.com/tio/tio).
-It is aimed at testing SBC's, FPGA boards and other embedded devices. It was
-originally developed to help with Linux kernel testing.
+
+It is aimed at testing SBC's, FPGA's and other similar devices.
+
+# Keyboard commands
+
+* Prefix: `<CTRL-T>`
+* Quit the program: `<PREFIX> <CTRL-Q>`
+* Send file: `<PREFIX> <CTRL-S>`
 
 # Debugging
 
