@@ -5,11 +5,9 @@ use crate::arguments::{Arguments, POLL_DURATION};
 use std::io::{self, ErrorKind};
 
 /// A serial port connector.
-pub struct Session {
-    port: Box<dyn serialport::SerialPort>,
-}
+pub struct SerialPort(Box<dyn serialport::SerialPort>);
 
-impl Session {
+impl SerialPort {
     /// Connect to a serial port.
     pub fn new(device: String, args: &Arguments) -> io::Result<Self> {
         let mut port = serialport::new(device, args.baud_rate)
@@ -30,15 +28,15 @@ impl Session {
         port.set_parity(args.parity.into())?;
         port.set_flow_control(args.flow_control.into())?;
 
-        Ok(Session { port })
+        Ok(Self(port))
     }
 }
 
-impl io::Read for Session {
+impl io::Read for SerialPort {
     /// Read data from the serial port. Returns zero length for the buffer,
     /// if the operation expires.
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        self.port.read(buf).or_else(|e| {
+        self.0.read(buf).or_else(|e| {
             if e.kind() == ErrorKind::TimedOut {
                 Ok(0)
             } else {
@@ -48,11 +46,11 @@ impl io::Read for Session {
     }
 }
 
-impl io::Write for Session {
+impl io::Write for SerialPort {
     /// Write data to the serial port. Returns zero length for the buffer,
     /// if the operation expires.
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.port.write(buf).or_else(|e| {
+        self.0.write(buf).or_else(|e| {
             if e.kind() == ErrorKind::TimedOut {
                 Ok(0)
             } else {
@@ -63,6 +61,6 @@ impl io::Write for Session {
 
     // Flush the intermediate buffer.
     fn flush(&mut self) -> io::Result<()> {
-        self.port.flush()
+        self.0.flush()
     }
 }

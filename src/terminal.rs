@@ -3,7 +3,7 @@
 
 use crate::arguments::Arguments;
 use crate::path_complete::PathComplete;
-use crate::session::Session;
+use crate::serial_port::SerialPort;
 use mode::{Entry, Mode, ReceivingFile, SendingFile, WaitingCommand, WaitingInput};
 
 use crossterm::{
@@ -27,7 +27,7 @@ pub struct Terminal;
 
 impl Terminal {
     pub fn run(&self, args: &Arguments, device: &str) -> io::Result<()> {
-        let mut session = Session::new(device.to_string(), args)?;
+        let mut port = SerialPort::new(device.to_string(), args)?;
         let mut mode = Mode::new(mode::State::WaitingInput);
         let mut buf: [u8; 512] = [0; 512];
 
@@ -35,16 +35,16 @@ impl Terminal {
         execute!(io::stdout(), EnterAlternateScreen)?;
 
         loop {
-            let size = session.read(&mut buf)?;
+            let size = port.read(&mut buf)?;
 
             io::stdout().write_all(&buf[..size])?;
             io::stdout().flush()?;
 
             match mode.entry() {
-                Entry::WaitingInput(it) => self.visit_waiting_input(it, &mut session),
-                Entry::WaitingCommand(it) => self.visit_waiting_command(it, &mut session),
-                Entry::SendingFile(it) => self.visit_sending_file(it, &mut session),
-                Entry::ReceivingFile(it) => self.visit_receiving_file(it, &mut session),
+                Entry::WaitingInput(it) => self.visit_waiting_input(it, &mut port),
+                Entry::WaitingCommand(it) => self.visit_waiting_command(it, &mut port),
+                Entry::SendingFile(it) => self.visit_sending_file(it, &mut port),
+                Entry::ReceivingFile(it) => self.visit_receiving_file(it, &mut port),
                 Entry::Exit => return Ok(()),
             }?;
         }
@@ -63,7 +63,7 @@ impl Terminal {
         execute!(io::stdout(), LeaveAlternateScreen)
     }
 
-    fn visit_waiting_input(&self, it: WaitingInput, session: &mut Session) -> io::Result<()> {
+    fn visit_waiting_input(&self, it: WaitingInput, port: &mut SerialPort) -> io::Result<()> {
         match event::read()? {
             Event::Key(ref key) if key.modifiers == KeyModifiers::NONE => {
                 // The buffer is sized to fit any UTF-8 character (max 4 bytes):
@@ -94,7 +94,7 @@ impl Terminal {
                 };
 
                 if !encoded.is_empty() {
-                    session.write_all(encoded)?;
+                    port.write_all(encoded)?;
                 }
             }
             Event::Key(ref key)
@@ -107,7 +107,7 @@ impl Terminal {
         Ok(())
     }
 
-    fn visit_waiting_command(&self, it: WaitingCommand, _: &mut Session) -> io::Result<()> {
+    fn visit_waiting_command(&self, it: WaitingCommand, _: &mut SerialPort) -> io::Result<()> {
         match event::read()? {
             Event::Key(ref key) if key.modifiers == KeyModifiers::NONE => {
                 // TODO: Substitute later on with a hash table with `KeyEvent`
@@ -124,7 +124,7 @@ impl Terminal {
         Ok(())
     }
 
-    fn visit_sending_file(&self, it: SendingFile, _: &mut Session) -> io::Result<()> {
+    fn visit_sending_file(&self, it: SendingFile, _: &mut SerialPort) -> io::Result<()> {
         let current_dir = std::env::current_dir()?;
         let help_message = format!("PWD: {}", current_dir.to_string_lossy());
         let path = inquire::Text::new("Send")
@@ -140,7 +140,7 @@ impl Terminal {
         Ok(())
     }
 
-    fn visit_receiving_file(&self, it: ReceivingFile, _: &mut Session) -> io::Result<()> {
+    fn visit_receiving_file(&self, it: ReceivingFile, _: &mut SerialPort) -> io::Result<()> {
         // TODO: zmodem
         it.waiting_input();
         Ok(())
@@ -150,7 +150,7 @@ impl Terminal {
 impl Drop for Terminal {
     fn drop(&mut self) {
         self.try_drop().unwrap_or_else(|e| {
-            log::error!("terminal: {e}");
+            log::error!("drop: {e}");
         })
     }
 }

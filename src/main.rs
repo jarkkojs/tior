@@ -3,7 +3,7 @@
 
 mod arguments;
 mod path_complete;
-mod session;
+mod serial_port;
 mod terminal;
 
 use arguments::{Arguments, Task};
